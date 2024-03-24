@@ -60,7 +60,21 @@ main:
     jal draw_border_with_checkered_pattern
     
 game_loop:
-    la $a0, I_TETROMINO         # load the address of the I tetromino
+	# 1a. Check if key has been pressed
+	lw $t0, ADDR_KBRD           # $t0 = base address for keyboard
+    lw $t8, 0($t0)              # Load first word from keyboard
+    bne $t8, 1, keyboard_input_end  # check if a key is pressed
+	
+    # 1b. Check which key has been pressed
+    lw $a0, 4($t0)          # Load second word from keyboard
+    beq $a0, 0x71, exit     # Check if the q key was pressed
+    
+    keyboard_input_end:
+    # 2a. Check for collisions
+	# 2b. Update locations (paddle, ball)
+	# 3. Draw the screen
+	
+	la $a0, I_TETROMINO         # load the address of the I tetromino
     la $a1, CURR_TETROMINO      # load the address of the current tetromino 
     la $a2, I_COLOUR            # load the address of colour of the I tetromino
     la $a3, CURR_COLOUR         # load the address of the colour of the current tetromino
@@ -70,16 +84,12 @@ game_loop:
     lw $a1, CURR_COLOUR         # load the value of the current colour
     jal draw_tetromino          # draw the tetromino
     
-	# 1a. Check if key has been pressed
-	
-    # 1b. Check which key has been pressed
-    # 2a. Check for collisions
-	# 2b. Update locations (paddle, ball)
-	# 3. Draw the screen
 	# 4. Sleep
+	jal sleep
 
     #5. Go back to 1
     b game_loop
+
 
 sleep:
     li $v0, 32
