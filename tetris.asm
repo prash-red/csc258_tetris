@@ -33,9 +33,45 @@ TETRIS_START:
 # default location of the I tetromino as x, y values in an array
 I_TETROMINO:
     .word 8, 1, 8, 2, 8, 3, 8, 4, 8, 2
-# colour of the I tetroomino
+# colour of the I tetromino
 I_COLOUR:
     .word 0x01EDFA
+# default location of the S tetromino as x, y values in an array
+S_TETROMINO:
+    .word 8, 1, 9, 1, 7, 2, 8, 2, 8, 2
+# colour of the S tetromino
+S_COLOUR:
+    .word 0xEA141C
+# default location of the Z tetromino as x, y values in an array
+Z_TETROMINO:
+    .word 7, 1, 8, 1, 8, 2, 9, 2, 8, 2
+# colour of the Z tetromino
+Z_COLOUR:
+    .word 0x53DA3F
+# default location of the L tetromino as x, y values in an array
+L_TETROMINO:
+    .word 7, 1, 7, 2, 7, 3, 8, 3, 7, 2
+# colour of the L tetromino
+L_COLOUR:
+    .word 0xFF910C
+# default location of the J tetromino as x, y values in an array
+J_TETROMINO:
+    .word 8, 1, 8, 2, 8, 3, 7, 3, 8, 2
+# colour of the J tetromino
+J_COLOUR:
+    .word 0xFFC0CB
+# default location of the T tetromino as x, y values in an array
+T_TETROMINO:
+    .word 6, 1, 7, 1, 8, 1, 7, 2, 7, 1
+# colour of the T tetromino
+T_COLOUR:
+    .word 0x78256F
+# default location of the O tetromino as x, y values in an array
+O_TETROMINO:
+    .word 7, 1, 7, 2, 8, 1, 8, 2, 0, 0
+# colour of the O tetromino
+O_COLOUR:
+    .word 0xFEFB34
 ##############################################################################
 # Mutable Data
 ##############################################################################
@@ -53,6 +89,14 @@ FUT_TETROMINO:
 # Memory allocated for the collision state, stores a value of 0 if no collision, 1 if its a wall collision, 2 if its a bottom collision
 COLLISION_STATE:  
     .word 0
+
+# Memory allocated to store the colour information of previously places blocks : TETRIS_WIDTH * TETRIS_HEIGHT * 4 = 16 * 24 * 4 = 1536 bytes
+PREVIOUS_BLOCKS:
+    .space 1536
+
+# Memory allocated to store if the O tetromino is selected
+O_SELECTED:
+    .word 0
 ##############################################################################
 # Code
 ##############################################################################
@@ -64,18 +108,7 @@ main:
     # Initialize the game
     jal draw_border_with_checkered_pattern
     
-    la $a0, I_TETROMINO         # load the address of the I tetromino
-    la $a1, CURR_TETROMINO      # load the address of the current tetromino 
-    jal copy_tetromino
-    
-    la $a0, CURR_TETROMINO      # load the addreess of the current tetromino
-    la $a1, FUT_TETROMINO       # load the address of the future tetromino
-    jal copy_tetromino
-    
-    la $a2, I_COLOUR            # load the address of colour of the I tetromino
-    la $a3, CURR_COLOUR         # load the address of the colour of the current tetromino
-    lw $t0, ($a2)               # load the colour into $t0
-    sw $t0, ($a3)               # set the colour into CURR_COLOURS
+    jal set_random_tetromino
     
     la $a0, CURR_TETROMINO      # load the address of the current tetromino 
     lw $a1, CURR_COLOUR         # load the value of the current colour
@@ -122,6 +155,83 @@ sleep:
 exit:
     li $v0, 10
     syscall
+
+# set a random tetromino to the current tetromino location, the future tetromino location and the colour
+# - $a0: stores the randomly generated number between 0 and 6 inclusive, and then it stores the address of the default location of the selected tetromino
+# - $t0: stores the address of the O_SELECTED variable
+# - $t1: stores the value to be set into O_SELECTED
+# - $t2: stores the colour of the selected tetromino
+set_random_tetromino:
+    addi $sp, $sp, -4       # Allocate space for the return address
+    sw $ra, 0($sp)          # Store the return address
+    
+    li $v0 , 42     # generate a random number to be stored in $a0
+    li $a0 , 0
+    li $a1 , 7  
+    syscall
+    beq $a0, 0, O_chosen    # check which tetromino was chosen
+    beq $a0, 1, I_chosen
+    beq $a0, 2, S_chosen
+    beq $a0, 3, Z_chosen
+    beq $a0, 4, L_chosen
+    beq $a0, 5, J_chosen
+    beq $a0, 6, T_chosen
+    
+    O_chosen:
+        la $a0, O_TETROMINO 
+        lw $t2, O_COLOUR
+        la $t0, O_SELECTED
+        li $t1, 1
+        sw $t1, ($t0)   # set the O selected to 1
+        b after_tetromino_is_chosen
+    I_chosen:
+        la $a0, I_TETROMINO 
+        lw $t2, I_COLOUR
+        la $t0, O_SELECTED
+        sw $zero, ($t0)   # set the O selected to 0
+        b after_tetromino_is_chosen
+    S_chosen:
+        la $a0, S_TETROMINO 
+        lw $t2, S_COLOUR    
+        la $t0, O_SELECTED
+        sw $zero, ($t0)   # set the O selected to 0
+        b after_tetromino_is_chosen
+    Z_chosen:
+        la $a0, Z_TETROMINO 
+        lw $t2, Z_COLOUR    
+        la $t0, O_SELECTED
+        sw $zero, ($t0)   # set the O selected to 0
+        b after_tetromino_is_chosen
+    L_chosen:
+        la $a0, L_TETROMINO 
+        lw $t2, L_COLOUR    
+        la $t0, O_SELECTED
+        sw $zero, ($t0)   # set the O selected to 0
+        b after_tetromino_is_chosen
+    J_chosen:
+        la $a0, J_TETROMINO 
+        lw $t2, J_COLOUR    
+        la $t0, O_SELECTED
+        sw $zero, ($t0)   # set the O selected to 0
+        b after_tetromino_is_chosen
+    T_chosen:
+        la $a0, T_TETROMINO 
+        lw $t2, T_COLOUR    
+        la $t0, O_SELECTED
+        sw $zero, ($t0)   # set the O selected to 0
+        b after_tetromino_is_chosen
+    after_tetromino_is_chosen:
+        la $a1, CURR_TETROMINO
+        jal copy_tetromino  # copy the selected tetromino in the current tetromino
+        la $a0, CURR_TETROMINO
+        la $a1, FUT_TETROMINO
+        jal copy_tetromino  # copy the selected tetromino in the future tetromino
+        la $t1, CURR_COLOUR # load the address of the current colour
+        sw $t2, ($t1)       # store the colour
+        
+        lw $ra, 0($sp)          # Restore the return address
+        addi $sp, $sp, 4        # Deallocate space for the return address
+        jr $ra                  # return calling function
     
 # handles the case when the key d is pressed by setting the future location of the tetromino
 # - $t0: stores the address of the current tetromino
@@ -203,6 +313,8 @@ handle_s_press:
 # - $t7: stores the pivot x value for a pixel of the tetromino in the loop iteration
 # - $t8: stores the pivot y value for a pixel of the tetromino in the loop iteration
 handle_w_press:
+    lw $t0, O_SELECTED      # check if O tetromino is the current tetromino
+    beq $t0, 1, keyboard_input_end  # if O tetromino is selected we dont need to rotate as it is symmetrical along all axes
     la $t0, CURR_TETROMINO
     la $t1, FUT_TETROMINO
     addi $t2, $zero, 0      # set the loop counter to 0
@@ -234,11 +346,13 @@ handle_w_press:
 # - $t0: the loop counter
 # - $t1: the address of the collision state
 # - $t2: the address of the future tetromino
-# - $t3: stores the x value for the current pixel
-# - $t4: stores the y value for the current pixel
+# - $t3: stores the x value for the future pixel
+# - $t4: stores the y value for the future pixel
 # - $t5: stores the width - 1 of the tetris playing area
 # - $t6: stores the height -1 of the tetris playing area 
-# 0 $t7: stores the new value of the collision state to be loaded in the actual collision state variable
+# - $t7: stores the new value of the collision state to be loaded in the actual collision state variable
+# - $t8: stores the address of the array of the previously placed blocks which is then modified 
+# - $t9: stores the colour of a previously placed block
 check_collision:
     addi $t0, $zero, 0      # set the loop counter
     la $t1, COLLISION_STATE # load the address of the collision state
@@ -247,13 +361,23 @@ check_collision:
     lw $t5, TETRIS_WIDTH    # load the width of the tetris playing area
     lw $t6, TETRIS_HEIGHT   # load the height of the tetris playing area
     addi $t5, $t5 -1        # decrement the width by one
-    addi $t6, $t6,-1        # decrement the width by one  
+    addi $t6, $t6,-1        # decrement the height by one  
     check_collision_loop_start:
-        lw $t3, ($t2)       # load the x value
-        lw $t4, 4($t2)      # load the y value
-        beq $t3, $zero, wall_collision  # if the pixel collides with the left border
-        beq $t3, $t5, wall_collision    # if the pixel collides with the right border
-        beq $t4, $zero, wall_collision  # if the pixel collides with the top border
+        la $t8, PREVIOUS_BLOCKS # load the address of the previously placed blocks
+        lw $t3, ($t2)       # load the x value of the future pixel
+        lw $t4, 4($t2)      # load the y value of the future pixel
+        
+        beq $t3, $zero, wall_collision          # if the pixel collides with the left border
+        beq $t3, $t5, wall_collision            # if the pixel collides with the right border
+        beq $t4, $zero, wall_collision          # if the pixel collides with the top border
+        beq $t4, $t6, bottom_block_collision    # if the pixel collides with the bottom border
+        
+        sll $t3, $t3, 2                         # store the x offset in number of bytes
+        sll $t4, $t4, 6                         # store the y offset in number of bytes
+        add $t8, $t8, $t3                       # add the x offset to the pointer to the previously placed blocks array
+        add $t8, $t8, $t4                       # add the y offset to the pointer to the previously placed blocks array
+        lw $t9, ($t8)                           # get the colour stored at that location
+        bne $t9, 0, bottom_block_collision      # if the colour is not 0, i.e. there is a block at that location
         
         addi $t2, $t2, 8    # increment the pointer to the address of the future tetromino by 8
         addi $t0, $t0, 1    # increment the loop counter by 1
@@ -264,28 +388,69 @@ check_collision:
         addi $t7, $zero, 1          
         sw $t7, ($t1)               # set the collision state to 1
         b check_collision_return    # return
+    bottom_block_collision:
+        addi $t7, $zero, 2          
+        sw $t7, ($t1)               # set the collision state to 2
+        b check_collision_return    # return
     check_collision_return:
         jr $ra      # return to the calling function
     
 # Updates the location of the current tetromino, by checking the checking the collision state, if it collides then it will not update 
+# - $t0 - stores the value of the collision state
 update_location:
     addi $sp, $sp, -4       # Allocate space for the return address
     sw $ra, 0($sp)          # Store the return address
     lw $t0, COLLISION_STATE     # load the collision state into $t0
     
-    bne $t0, 0, no_update      # if the collision state is 0, update the current location to the future location
-    la $a0, FUT_TETROMINO   # loads the address of the future tetromino 
-    la $a1, CURR_TETROMINO  # loads the address of the current tetromino
-    jal copy_tetromino      # copy the future tetromino location into the current tetromino location
+    beq $t0, 0, collision_state_0       # if the collision state is 0, there is no collision and we can safely update the current tetromino location to its future location
+    beq $t0, 1, collision_state_1       # if the collision state is 1, we wont update the current location of the tetromino
+    beq $t0, 2, collision_state_2       # if the collision state is 2, we store the tetromino in the previously placed blocks and load in a new tetromino
     
-    no_update:                  # set the future address to the current address of the tetromino
-        la $a0, CURR_TETROMINO  # loads the address of the current tetromino 
-        la $a1, FUT_TETROMINO   # loads the address of the future tetromino
-        jal copy_tetromino      # copy the current tetromino location into the future tetromino location
+    collision_state_0:
+        la $a0, FUT_TETROMINO       # loads the address of the future tetromino 
+        la $a1, CURR_TETROMINO      # loads the address of the current tetromino
+        jal copy_tetromino          # copy the future tetromino location into the current tetromino location
+        b update_location_return    # return
+    
+    collision_state_1:                  
+        la $a0, CURR_TETROMINO      # loads the address of the current tetromino 
+        la $a1, FUT_TETROMINO       # loads the address of the future tetromino
+        jal copy_tetromino          # copy the current tetromino location into the future tetromino location
+        b update_location_return    # return
+    
+    collision_state_2:
+        jal store_to_previously_placed_blocks
+        
+    
+    update_location_return:
         lw $ra, 0($sp)          # Restore the return address
         addi $sp, $sp, 4        # Deallocate space for the return address
         jr $ra                  # return calling function
-    
+
+# stores the current tetromino into the previously placed blocks array. It stores the colour in the array
+# - $t0: the loop counter
+# - $t1: the address of the previously placed blocks array
+# - $t2: the address of the current tetromino
+# - $t3: the colour of the current tetromino
+# - $t4: the x offset in bytes
+# - $t5: the y offset in bytes
+store_to_previously_placed_blocks:
+    addi $t0, $zero, 0      # set the loop counter
+    la $t2, CURR_TETROMINO  # load the address of the current tetromino
+    lw $t3, CURR_COLOUR     # load the colour of the current tetromino
+    store_to_previously_placed_blocks_loop_start:
+        la $t1, PREVIOUS_BLOCKS     # load the address of the previously placed blocks array
+        lw $t4, ($t2)               # load the x value
+        lw $t5, 4($t2)              # load the y value
+        sll $t4, $t4, 2             # store the x offset in bytes
+        sll $t5, $t5, 6             # store the y offset in bytes
+        add $t1, $t1, $t4           # add the x offset
+        add $t1, $t1, $t5           # add the y offset
+        sw $t3, ($t1)               # store the colour in that location
+        addi $t2, $t2, 8            # increment the pointer to the current tetromino by 8
+        addi $t0, $t0, 1            # increment the loop counter
+        blt $t0, 4, store_to_previously_placed_blocks_loop_start    # check the loop condition
+    jr $ra  #return to the calling function
 
 # The code for drawing a border with checkered pattern
 # - $a0: the width of the border in pixels
