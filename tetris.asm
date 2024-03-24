@@ -97,6 +97,9 @@ PREVIOUS_BLOCKS:
 # Memory allocated to store if the O tetromino is selected
 O_SELECTED:
     .word 0
+# Memory allocated to store if the future move is the result of a down movement
+DOWN_MOVEMENT:
+    .word 0
 ##############################################################################
 # Code
 ##############################################################################
@@ -135,6 +138,7 @@ game_loop:
 	# 3. Draw the screen
     
     jal draw_border_with_checkered_pattern
+    jal draw_previously_placed_blocks
     la $a0, CURR_TETROMINO      # load the address of the current tetromino 
     lw $a1, CURR_COLOUR         # load the value of the current colour
     jal draw_tetromino          # draw the tetromino
@@ -156,6 +160,66 @@ exit:
     li $v0, 10
     syscall
 
+# draws the previously placed blocks
+# - $t0: stores the address to write to on the bitmap display
+# - $t1: stores the address to read from the previous blocks array
+# - $t2: stores the x value of the current pixel to draw
+# - $t3: stores the y value of the current pixel to draw
+# - $t4: stores the width of the tetris playing area
+# - $t5: stores the height of the tetris playing area
+# - $t6: stores the x offset in bytes
+# - $t7: stores the y offset in bytes
+# - $t8: stores the colour of the pixel of the previously placed blocks
+draw_previously_placed_blocks:
+    addi $sp, $sp, -4       # Allocate space for the return address
+    sw $ra, 0($sp)          # Store the return address
+    lw $t4, TETRIS_WIDTH    # Store the width
+    lw $t5, TETRIS_HEIGHT   # Store the height
+    li $t3, 0               # initialize the y value to 0
+    draw_prev_y_loop:
+        li $t2, 0                   # initialize the x value to 0
+        draw_prev_x_loop:
+            la $t1, PREVIOUS_BLOCKS # load the address of the array that stores the previously placed blocks
+            sll $t6, $t2, 2         # store the x offset
+            sll $t7, $t3, 6         # store the y offset
+            add $t1, $t1, $t6       # add the x offset
+            add $t1, $t1, $t7       # add the y offset
+            
+            lw $t8, ($t1)           # load the colour of pixel at location (x,y) from the previously placed blocks
+            bne $t8, 0, draw_the_current_pixel 
+            after_pixel_is_drawn:
+            addi $t2, $t2, 1        # increment the x value by 1
+            blt $t2, $t4, draw_prev_x_loop
+        addi $t3, $t3, 1        # increment the y value by 1
+        blt $t3, $t5, draw_prev_y_loop
+    b draw_prev_return  # return
+    
+    draw_the_current_pixel:
+        addi $sp, $sp, -4   # Allocate space for $t0
+        sw $t0, ($sp)       # Store $t0
+        addi $sp, $sp, -4   # Allocate space for $t1
+        sw $t1, ($sp)       # Store $t1
+        addi $sp, $sp, -4   # Allocate space for $t2
+        sw $t2, ($sp)       # Store $t2
+        
+        add $a0, $zero, $t2 # Store the x value on $a0
+        add $a1, $zero, $t3 # Store the y value on $a1
+        add $a2, $zero, $t8 # Store the colour of the pixel to draw in $a3
+        jal draw_pixel
+        
+        lw $t2, ($sp)       # Restore $t2
+        addi $sp, $sp, 4    # Deallocate space for $t2
+        lw $t1, ($sp)       # Restore $t1
+        addi $sp, $sp, 4    # Deallocate space for $t1
+        lw $t0, ($sp)       # Restore $t0
+        addi $sp, $sp, 4    # Deallocate space for $t0
+        b after_pixel_is_drawn
+    
+    draw_prev_return:
+        lw $ra, 0($sp)          # Restore the return address
+        addi $sp, $sp, 4        # Deallocate space for the return address
+        jr $ra                  # return calling function
+          
 # set a random tetromino to the current tetromino location, the future tetromino location and the colour
 # - $a0: stores the randomly generated number between 0 and 6 inclusive, and then it stores the address of the default location of the selected tetromino
 # - $t0: stores the address of the O_SELECTED variable
@@ -238,7 +302,10 @@ set_random_tetromino:
 # - $t1: stores the address of the future tetromino
 # - $t2: loop counter
 # - $t3: stores the x or y value for a pixel of the tetromino in the loop iteration
+# - $t4: stores the address of DOWN_MOVEMENT
 handle_d_press:
+    la $t4, DOWN_MOVEMENT   # load the address of the downmovement
+    sw $zero, ($t4)         # set down movement to zero
     la $t0, CURR_TETROMINO
     la $t1, FUT_TETROMINO
     addi $t2, $zero, 0      # set the loop counter to 0
@@ -253,7 +320,6 @@ handle_d_press:
         addi $t1, $t1, 8    # increment the pointer to the future tetromino array by 8 bytes
         addi $t2, $t2, 1    # increment the loop counter by 1
         blt $t2, 5, handle_D_press_loop_start   # check the loop condition
-    
     b keyboard_input_end
     
 # handles the case when the key a is pressed by setting the future location of the tetromino
@@ -261,7 +327,10 @@ handle_d_press:
 # - $t1: stores the address of the future tetromino
 # - $t2: loop counter
 # - $t3: stores the x or y value for a pixel of the tetromino in the loop iteration
+# - $t4: stores the address of DOWN_MOVEMENT
 handle_a_press:
+    la $t4, DOWN_MOVEMENT   # load the address of the downmovement
+    sw $zero, ($t4)         # set down movement to zero
     la $t0, CURR_TETROMINO
     la $t1, FUT_TETROMINO
     addi $t2, $zero, 0      # set the loop counter to 0
@@ -276,7 +345,6 @@ handle_a_press:
         addi $t1, $t1, 8    # increment the pointer to the future tetromino array by 8 bytes
         addi $t2, $t2, 1    # increment the loop counter by 1
         blt $t2, 5, handle_a_press_loop_start   # check the loop condition
-    
     b keyboard_input_end
 
 # handles the case when the key s is pressed by setting the future location of the tetromino
@@ -284,7 +352,13 @@ handle_a_press:
 # - $t1: stores the address of the future tetromino
 # - $t2: loop counter
 # - $t3: stores the x or y value for a pixel of the tetromino in the loop iteration
+# - $t4: stores the address of DOWN_MOVEMENT
+# - $t5: stores a temporary value to be loaded into DOWN_MOVEMENT
 handle_s_press:
+    la $t4, DOWN_MOVEMENT   # load the address of the downmovement
+    li $t5, 1               # load 1 into $t5
+    sw $t5, ($t4)           # set down movement to 1
+    
     la $t0, CURR_TETROMINO
     la $t1, FUT_TETROMINO
     addi $t2, $zero, 0      # set the loop counter to 0
@@ -312,7 +386,11 @@ handle_s_press:
 # - $t6: stores the future y value for a pixel of the tetromino in the loop iteration
 # - $t7: stores the pivot x value for a pixel of the tetromino in the loop iteration
 # - $t8: stores the pivot y value for a pixel of the tetromino in the loop iteration
+# - $t9: stores the address of DOWN_MOVEMENT
 handle_w_press:
+    la $t9, DOWN_MOVEMENT   # load the address of the downmovement
+    sw $zero, ($t9)         # set down movement to zero
+    
     lw $t0, O_SELECTED      # check if O tetromino is the current tetromino
     beq $t0, 1, keyboard_input_end  # if O tetromino is selected we dont need to rotate as it is symmetrical along all axes
     la $t0, CURR_TETROMINO
@@ -377,12 +455,17 @@ check_collision:
         add $t8, $t8, $t3                       # add the x offset to the pointer to the previously placed blocks array
         add $t8, $t8, $t4                       # add the y offset to the pointer to the previously placed blocks array
         lw $t9, ($t8)                           # get the colour stored at that location
-        bne $t9, 0, bottom_block_collision      # if the colour is not 0, i.e. there is a block at that location
+        lw $t8, DOWN_MOVEMENT                   # load the value of down movement 
+        bne $t9, $0, check_down_movement      # if the colour is not 0, i.e. there is a block at that location
         
         addi $t2, $t2, 8    # increment the pointer to the address of the future tetromino by 8
         addi $t0, $t0, 1    # increment the loop counter by 1
         blt $t0, 4, check_collision_loop_start  # check the loop condition
         b check_collision_return    # if no collision we just return
+    
+    check_down_movement:
+        beq $t8, 1, bottom_block_collision  # check if the future movement was a result of a down movement
+        b wall_collision
         
     wall_collision:
         addi $t7, $zero, 1          
@@ -420,6 +503,8 @@ update_location:
     
     collision_state_2:
         jal store_to_previously_placed_blocks
+        
+        jal set_random_tetromino
         
     
     update_location_return:
