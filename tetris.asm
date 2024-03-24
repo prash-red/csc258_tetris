@@ -30,9 +30,6 @@ TETRIS_HEIGHT:
 # The location where the tetris playing area starts from (the memory address from where its starts to be drawn)
 TETRIS_START:
     .word 0x10008000
-# The actual width of the screen
-DISP_WIDTH:
-    .word 32
 # default location of the I tetromino as x, y values in an array
 I_TETROMINO:
     .word 8, 1, 8, 2, 8, 3, 8, 4, 8, 2
@@ -53,7 +50,7 @@ CURR_COLOUR:
 FUT_TETROMINO:
     .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
     
-# Memory allocated for the collision state, stores a value of 0 if no collision, 1 if its a , 2 if its a bottom collision
+# Memory allocated for the collision state, stores a value of 0 if no collision, 1 if its a wall collision, 2 if its a bottom collision
 COLLISION_STATE:  
     .word 0
 ##############################################################################
@@ -233,9 +230,42 @@ handle_w_press:
     b keyboard_input_end
 
 
-# Checks if the future tetromino location collides with something in the board
+# Checks if the future tetromino location collides with something in the board and sets the COLLISION_STATE variable
+# - $t0: the loop counter
+# - $t1: the address of the collision state
+# - $t2: the address of the future tetromino
+# - $t3: stores the x value for the current pixel
+# - $t4: stores the y value for the current pixel
+# - $t5: stores the width - 1 of the tetris playing area
+# - $t6: stores the height -1 of the tetris playing area 
+# 0 $t7: stores the new value of the collision state to be loaded in the actual collision state variable
 check_collision:
-    jr $ra      # return to the calling function
+    addi $t0, $zero, 0      # set the loop counter
+    la $t1, COLLISION_STATE # load the address of the collision state
+    la $t2, FUT_TETROMINO   # load the address of the future tetromino position
+    sw $zero, ($t1)         # set the default value of the collision state to 0
+    lw $t5, TETRIS_WIDTH    # load the width of the tetris playing area
+    lw $t6, TETRIS_HEIGHT   # load the height of the tetris playing area
+    addi $t5, $t5 -1        # decrement the width by one
+    addi $t6, $t6,-1        # decrement the width by one  
+    check_collision_loop_start:
+        lw $t3, ($t2)       # load the x value
+        lw $t4, 4($t2)      # load the y value
+        beq $t3, $zero, wall_collision  # if the pixel collides with the left border
+        beq $t3, $t5, wall_collision    # if the pixel collides with the right border
+        beq $t4, $zero, wall_collision  # if the pixel collides with the top border
+        
+        addi $t2, $t2, 8    # increment the pointer to the address of the future tetromino by 8
+        addi $t0, $t0, 1    # increment the loop counter by 1
+        blt $t0, 4, check_collision_loop_start  # check the loop condition
+        b check_collision_return    # if no collision we just return
+        
+    wall_collision:
+        addi $t7, $zero, 1          
+        sw $t7, ($t1)               # set the collision state to 1
+        b check_collision_return    # return
+    check_collision_return:
+        jr $ra      # return to the calling function
     
 # Updates the location of the current tetromino, by checking the checking the collision state, if it collides then it will not update 
 update_location:
@@ -248,7 +278,10 @@ update_location:
     la $a1, CURR_TETROMINO  # loads the address of the current tetromino
     jal copy_tetromino      # copy the future tetromino location into the current tetromino location
     
-    no_update:
+    no_update:                  # set the future address to the current address of the tetromino
+        la $a0, CURR_TETROMINO  # loads the address of the current tetromino 
+        la $a1, FUT_TETROMINO   # loads the address of the future tetromino
+        jal copy_tetromino      # copy the current tetromino location into the future tetromino location
         lw $ra, 0($sp)          # Restore the return address
         addi $sp, $sp, 4        # Deallocate space for the return address
         jr $ra                  # return calling function
