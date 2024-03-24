@@ -35,7 +35,7 @@ DISP_WIDTH:
     .word 32
 # default location of the I tetromino as x, y values in an array
 I_TETROMINO:
-    .word 8, 1,8, 2, 8, 3, 8, 4
+    .word 8, 1, 8, 2, 8, 3, 8, 4, 8, 2
 # colour of the I tetroomino
 I_COLOUR:
     .word 0x01EDFA
@@ -44,10 +44,18 @@ I_COLOUR:
 ##############################################################################
 # Memomory allocated for the current selected tetromino  
 CURR_TETROMINO:
-    .word 0, 0, 0, 0, 0, 0, 0, 0
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 # Memory allocated for the colour of the current tetromino
 CURR_COLOUR:
     .word 0x0
+
+# Memory allocated for the future tetromino location
+FUT_TETROMINO:
+    .word 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    
+# Memory allocated for the collision state, stores a value of 0 if no collision, 1 if its a , 2 if its a bottom collision
+COLLISION_STATE:  
+    .word 0
 ##############################################################################
 # Code
 ##############################################################################
@@ -59,6 +67,23 @@ main:
     # Initialize the game
     jal draw_border_with_checkered_pattern
     
+    la $a0, I_TETROMINO         # load the address of the I tetromino
+    la $a1, CURR_TETROMINO      # load the address of the current tetromino 
+    jal copy_tetromino
+    
+    la $a0, CURR_TETROMINO      # load the addreess of the current tetromino
+    la $a1, FUT_TETROMINO       # load the address of the future tetromino
+    jal copy_tetromino
+    
+    la $a2, I_COLOUR            # load the address of colour of the I tetromino
+    la $a3, CURR_COLOUR         # load the address of the colour of the current tetromino
+    lw $t0, ($a2)               # load the colour into $t0
+    sw $t0, ($a3)               # set the colour into CURR_COLOURS
+    
+    la $a0, CURR_TETROMINO      # load the address of the current tetromino 
+    lw $a1, CURR_COLOUR         # load the value of the current colour
+    jal draw_tetromino          # draw the tetromino
+    
 game_loop:
 	# 1a. Check if key has been pressed
 	lw $t0, ADDR_KBRD           # $t0 = base address for keyboard
@@ -66,20 +91,20 @@ game_loop:
     bne $t8, 1, keyboard_input_end  # check if a key is pressed
 	
     # 1b. Check which key has been pressed
-    lw $a0, 4($t0)          # Load second word from keyboard
-    beq $a0, 0x71, exit     # Check if the q key was pressed
-    
+    lw $a0, 4($t0)                  # Load second word from keyboard
+    beq $a0, 0x71, exit             # Check if the q key was pressed
+    beq $a0, 0x64, handle_d_press   # Check if the d key was pressed
+    beq $a0, 0x61, handle_a_press   # Check if the a key was pressed
+    beq $a0, 0x73, handle_s_press   # Check if the s key was pressed
+    beq $a0, 0x77, handle_w_press   # Check if the s key was pressed
     keyboard_input_end:
     # 2a. Check for collisions
+    jal check_collision
 	# 2b. Update locations (paddle, ball)
+	jal update_location
 	# 3. Draw the screen
-	
-	la $a0, I_TETROMINO         # load the address of the I tetromino
-    la $a1, CURR_TETROMINO      # load the address of the current tetromino 
-    la $a2, I_COLOUR            # load the address of colour of the I tetromino
-    la $a3, CURR_COLOUR         # load the address of the colour of the current tetromino
-    jal load_curr_tetromino
     
+    jal draw_border_with_checkered_pattern
     la $a0, CURR_TETROMINO      # load the address of the current tetromino 
     lw $a1, CURR_COLOUR         # load the value of the current colour
     jal draw_tetromino          # draw the tetromino
@@ -93,12 +118,141 @@ game_loop:
 
 sleep:
     li $v0, 32
-    li $a0, 1000
+    li $a0, 100
+    syscall
     jr $ra
 
 exit:
     li $v0, 10
     syscall
+    
+# handles the case when the key d is pressed by setting the future location of the tetromino
+# - $t0: stores the address of the current tetromino
+# - $t1: stores the address of the future tetromino
+# - $t2: loop counter
+# - $t3: stores the x or y value for a pixel of the tetromino in the loop iteration
+handle_d_press:
+    la $t0, CURR_TETROMINO
+    la $t1, FUT_TETROMINO
+    addi $t2, $zero, 0      # set the loop counter to 0
+    
+    handle_D_press_loop_start:
+        lw $t3, ($t0)       # load the x value
+        addi $t3, $t3, 1    # increment the x value by 1
+        sw $t3, ($t1)       # store the new value in the future tetromino
+        lw $t3, 4($t0)      # load the  y value
+        sw $t3, 4($t1)      # store the previous y value in the future tetromino
+        addi $t0, $t0, 8    # increment the pointer to the current tetromino array by 8 bytes
+        addi $t1, $t1, 8    # increment the pointer to the future tetromino array by 8 bytes
+        addi $t2, $t2, 1    # increment the loop counter by 1
+        blt $t2, 5, handle_D_press_loop_start   # check the loop condition
+    
+    b keyboard_input_end
+    
+# handles the case when the key a is pressed by setting the future location of the tetromino
+# - $t0: stores the address of the current tetromino
+# - $t1: stores the address of the future tetromino
+# - $t2: loop counter
+# - $t3: stores the x or y value for a pixel of the tetromino in the loop iteration
+handle_a_press:
+    la $t0, CURR_TETROMINO
+    la $t1, FUT_TETROMINO
+    addi $t2, $zero, 0      # set the loop counter to 0
+    
+    handle_a_press_loop_start:
+        lw $t3, ($t0)       # load the x value
+        addi $t3, $t3, -1   # increment the x value by -1
+        sw $t3, ($t1)       # store the new value in the future tetromino
+        lw $t3, 4($t0)      # load the  y value
+        sw $t3, 4($t1)      # store the previous y value in the future tetromino
+        addi $t0, $t0, 8    # increment the pointer to the current tetromino array by 8 bytes
+        addi $t1, $t1, 8    # increment the pointer to the future tetromino array by 8 bytes
+        addi $t2, $t2, 1    # increment the loop counter by 1
+        blt $t2, 5, handle_a_press_loop_start   # check the loop condition
+    
+    b keyboard_input_end
+
+# handles the case when the key s is pressed by setting the future location of the tetromino
+# - $t0: stores the address of the current tetromino
+# - $t1: stores the address of the future tetromino
+# - $t2: loop counter
+# - $t3: stores the x or y value for a pixel of the tetromino in the loop iteration
+handle_s_press:
+    la $t0, CURR_TETROMINO
+    la $t1, FUT_TETROMINO
+    addi $t2, $zero, 0      # set the loop counter to 0
+    
+    handle_s_press_loop_start:
+        lw $t3, ($t0)       # load the x value
+        sw $t3, ($t1)       # store the current x value in the future tetromino
+        lw $t3, 4($t0)      # load the y value
+        addi $t3, $t3, 1    # increment the y value by 1
+        sw $t3, 4($t1)      # store the previous y value in the future tetromino
+        addi $t0, $t0, 8    # increment the pointer to the current tetromino array by 8 bytes
+        addi $t1, $t1, 8    # increment the pointer to the future tetromino array by 8 bytes
+        addi $t2, $t2, 1    # increment the loop counter by 1
+        blt $t2, 5, handle_s_press_loop_start   # check the loop condition
+    
+    b keyboard_input_end
+
+# handles the case when the key w is pressed by setting the future location of the tetromino
+# - $t0: stores the address of the current tetromino
+# - $t1: stores the address of the future tetromino
+# - $t2: loop counter
+# - $t3: stores the previous x value for a pixel of the tetromino in the loop iteration
+# - $t4: stores the previous y value for a pixel of the tetromino in the loop iteration
+# - $t5: stores the future x value for a pixel of the tetromino in the loop iteration
+# - $t6: stores the future y value for a pixel of the tetromino in the loop iteration
+# - $t7: stores the pivot x value for a pixel of the tetromino in the loop iteration
+# - $t8: stores the pivot y value for a pixel of the tetromino in the loop iteration
+handle_w_press:
+    la $t0, CURR_TETROMINO
+    la $t1, FUT_TETROMINO
+    addi $t2, $zero, 0      # set the loop counter to 0
+    
+    lw $t7, 32($t0)         # load the pivot value for x
+    lw $t8, 36($t0)         # load the pivot value for y
+    
+    handle_w_press_loop_start:
+        lw $t3, ($t0)       # load the current x value
+        lw $t4, 4($t0)      # load the current y value
+        
+        add $t5, $t8, $t7   # future x = y pivot + x pivot
+        sub $t5, $t5, $t4   # future x -= current y
+        sw $t5, ($t1)       # store the future x value
+        
+        sub $t6, $t8, $t7   # future y = y pivot - x pivot
+        add $t6, $t6, $t3   # future y += current x
+        sw $t6, 4($t1)      # store the future y value
+        
+        addi $t0, $t0, 8    # increment the pointer to the current tetromino array by 8 bytes
+        addi $t1, $t1, 8    # increment the pointer to the future tetromino array by 8 bytes
+        addi $t2, $t2, 1    # increment the loop counter by 1
+        blt $t2, 5, handle_w_press_loop_start   # check the loop condition
+    
+    b keyboard_input_end
+
+
+# Checks if the future tetromino location collides with something in the board
+check_collision:
+    jr $ra      # return to the calling function
+    
+# Updates the location of the current tetromino, by checking the checking the collision state, if it collides then it will not update 
+update_location:
+    addi $sp, $sp, -4       # Allocate space for the return address
+    sw $ra, 0($sp)          # Store the return address
+    lw $t0, COLLISION_STATE     # load the collision state into $t0
+    
+    bne $t0, 0, no_update      # if the collision state is 0, update the current location to the future location
+    la $a0, FUT_TETROMINO   # loads the address of the future tetromino 
+    la $a1, CURR_TETROMINO  # loads the address of the current tetromino
+    jal copy_tetromino      # copy the future tetromino location into the current tetromino location
+    
+    no_update:
+        lw $ra, 0($sp)          # Restore the return address
+        addi $sp, $sp, 4        # Deallocate space for the return address
+        jr $ra                  # return calling function
+    
 
 # The code for drawing a border with checkered pattern
 # - $a0: the width of the border in pixels
@@ -164,24 +318,20 @@ outer_top:
 outer_end:
     jr $ra                          # return to calling program
 
-# loads the selected tetromino into the memory of the current tetromino
-# - $a0: The memory address of the default location of the selected tetromino
-# - $a1: The memory address of the location of the current tetromino
-# - $a2: The memory address of the colour of the selected tetromino
-# - $a3: The memory address of the colour of the currentt tetromino
+# copies the tetromino from $a0 into $a1
+# - $a0: The memory address of the selected tetromino
+# - $a1: The memory address to copy into
 # - $t0: The loop counter
 # - $t1: The value of a particular index of the default tetromino array
-load_curr_tetromino:
+copy_tetromino:
     li $t0, 0       # set the loop counter to 0
-    load_curr_tetromino_loop_start:
+copy_tetromino_loop_start:
         lw $t1, ($a0)               # set $t1 to the current address of $a0
         sw $t1, ($a1)               # set the current value of tetromino into the array of the current tetromino
         addi $a0, $a0, 4            # increment the address by 4 to get to the next index
         addi $a1, $a1, 4            # same as above
         addi $t0, $t0, 1            # increment the loop counter by 1
-        blt $t0, 8, load_curr_tetromino_loop_start  # check if the loop counter is less than 8 and loop again
-    lw $t1, ($a2)   # load the colour of the tetromino into $t1
-    sw $t1, ($a3)   # set the colour in into thhe current tetromino colour address
+        blt $t0, 10, copy_tetromino_loop_start  # check if the loop counter is less than 8 and loop again
     jr $ra  # return to calling 
     
 # draws the current tetromino
