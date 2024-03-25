@@ -100,6 +100,10 @@ O_SELECTED:
 # Memory allocated to store if the future move is the result of a down movement
 DOWN_MOVEMENT:
     .word 0
+    
+# Memory allocated for the counter to set the future tetromino position due to gravity
+GRAV_COUNT:
+    .word 1
 ##############################################################################
 # Code
 ##############################################################################
@@ -135,6 +139,9 @@ game_loop:
     jal check_collision
 	# 2b. Update locations
 	jal update_location
+	
+	jal gravity_effect
+	
 	# 3. Draw the screen
     
     jal draw_border_with_checkered_pattern
@@ -144,15 +151,16 @@ game_loop:
     jal draw_tetromino          # draw the tetromino
     
 	# 4. Sleep
+	li $a0, 16
 	jal sleep
-
+    
+    
     #5. Go back to 1
     b game_loop
 
-
+# - $a0: number of milliseconds for the program to sleep for
 sleep:
     li $v0, 32
-    li $a0, 100
     syscall
     jr $ra
 
@@ -160,6 +168,30 @@ exit:
     li $v0, 10
     syscall
 
+# gravity effect
+gravity_effect:
+    addi $sp, $sp, -4       # Allocate space for the return address
+    sw $ra, 0($sp)          # Store the return address
+    
+    lw $t0, GRAV_COUNT     # load the gravity counter
+	la $t1, GRAV_COUNT     # load the address of the gravity counter
+	li $t2, 30             # gravity speed
+	div $t0, $t2           # divide by 60
+	mfhi $t3               # get the remainder
+	bne $t3, 0, no_gravity_effect
+	jal move_future_location_down
+	jal check_collision    # check for collision
+	la $t1, GRAV_COUNT     # load the address of the gravity counter
+	sw $zero, ($t1)
+	li $t0, 0              # set the counter to zero
+	no_gravity_effect:
+	   addi $t0, $t0, 1    # increment the gravity counter by 1
+	   sw $t0, ($t1)       # save the gravity counter
+	   
+	lw $ra, 0($sp)          # Restore the return address
+    addi $sp, $sp, 4        # Deallocate space for the return address
+    jr $ra                  # return calling function
+    
 # draws the previously placed blocks
 # - $t0: stores the address to write to on the bitmap display
 # - $t1: stores the address to read from the previous blocks array
@@ -375,6 +407,28 @@ handle_s_press:
         blt $t2, 5, handle_s_press_loop_start   # check the loop condition
     
     b keyboard_input_end
+
+# moves the future location of the tetromino down by 1 unit
+# - $t1: stores the address of the future tetromino
+# - $t2: loop counter
+# - $t3: stores the x or y value for a pixel of the tetromino in the loop iteration
+# - $t4: stores the address of DOWN_MOVEMENT
+# - $t5: stores a temporary value to be loaded into DOWN_MOVEMENT
+move_future_location_down:
+    la $t4, DOWN_MOVEMENT   # load the address of the downmovement
+    li $t5, 1               # load 1 into $t5
+    sw $t5, ($t4)           # set down movement to 1
+    
+    la $t1, FUT_TETROMINO
+    addi $t2, $zero, 0      # set the loop counter to 0
+    move_down_loop_start:
+        lw $t3, 4($t1)      # load the y value
+        addi $t3, $t3, 1    # increment the y value by 1
+        sw $t3, 4($t1)      # store the new y value in the future tetromino
+        addi $t1, $t1, 8    # increment the pointer to the future tetromino array by 8 bytes
+        addi $t2, $t2, 1    # increment the loop counter by 1
+        blt $t2, 5, move_down_loop_start   # check the loop condition
+    jr $ra
 
 # handles the case when the key w is pressed by setting the future location of the tetromino
 # - $t0: stores the address of the current tetromino
