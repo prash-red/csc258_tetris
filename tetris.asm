@@ -72,6 +72,9 @@ O_TETROMINO:
 # colour of the O tetromino
 O_COLOUR:
     .word 0xFEFB34
+# Stores information to play the theme music in the form of (pitch, count value for when the note should be played, length of note in ms)
+THEME_MUSIC:
+    .word 76, 0, 400, 71, 16, 200, 72, 24, 200, 74, 32, 400, 72, 48, 200, 71, 56, 200, 69, 64, 400, 69, 80, 200, 72, 88, 200, 76, 96, 400, 74, 112, 200, 72, 120, 200, 71, 128, 400, 71, 144, 200, 72, 152, 200, 74, 160, 400, 76, 176, 400, 72, 192, 400, 69, 208, 400, 69, 224, 400, 74, 264, 400, 77, 280, 200, 81, 288, 400, 79, 304, 200, 77, 312, 200, 76, 320, 600, 72, 344, 200, 76, 352, 400, 74, 368, 200, 72, 376, 200, 71, 384, 400, 71, 400, 200, 72, 408, 200, 74, 416, 400, 76, 432, 400, 72, 448, 400, 69, 464, 400, 69, 480, 400, 0, 497, 0
 ##############################################################################
 # Mutable Data
 ##############################################################################
@@ -108,6 +111,12 @@ GRAV_COUNT:
 # Memory allocated to store the score
 SCORE:
     .word 0
+# Stores the note counter for playing the background music
+NOTE_COUNT:
+    .word 0
+# Stores the information of the next note to be played along with the address in memory
+NEXT_NOTE:
+    .word 0, 0, 0, 0
 ##############################################################################
 # Code
 ##############################################################################
@@ -123,7 +132,12 @@ main:
     
     jal draw_tetromino          # draw the tetromino
     
+    jal load_next_note
+    
 game_loop:
+    jal play_next_theme_note
+    jal increment_note_counter
+    
 	# 1a. Check if key has been pressed
 	lw $t0, ADDR_KBRD           # $t0 = base address for keyboard
     lw $t8, 0($t0)              # Load first word from keyboard
@@ -151,7 +165,7 @@ game_loop:
     jal draw_tetromino          # draw the tetromino
     
 	# 4. Sleep
-	li $a0, 16
+	li $a0, 25                 # sleep for 25 milliseconds
 	jal sleep
     
     
@@ -168,6 +182,82 @@ exit:
     li $v0, 10
     syscall
 
+# plays the note for a given pitch, duration, instrument and volume
+# - $a0: pitch (1-127)
+# - $a1: duration in milliseconds
+# - $a2: instrument (0-127)
+# - $a3: volume (0-127)
+play_note:
+    li $v0, 31
+    syscall
+    jr $ra
+
+# loads the next note into the NEXT_NOTE variable
+# - $t0: the note count
+# - $t1: the address of the next note to be played on the THEME_MUSIC array
+# - $t2: the address of the NEXT_NOTE variable
+# - $t3: intermediate values that will be copied over into NEXT_NOTE
+load_next_note:
+    lw $t0, NOTE_COUNT  # load the note counter
+    la $t2, NEXT_NOTE               # load the address of the next note variable
+    bne $t0, 0, not_starting_note   # it is not the starting note
+    la $t1, THEME_MUSIC             # load the address of the theme music information array
+    b copy_note
+    not_starting_note:
+        lw $t1, 12($t2)             # load the address of the next note
+    copy_note:
+        lw $t3, ($t1)                   # load the pitch
+        sw $t3, ($t2)                   # store the pitch
+        lw $t3, 4($t1)                  # load the count at what point the note should be played
+        sw $t3, 4($t2)                  # store the count
+        lw $t3, 8($t1)                  # load the duration
+        sw $t3, 8($t2)                  # save the duration
+        add $t3, $t1, 12                # load the address of the next note
+        sw $t3, 12($t2)                 # store the address
+    jr $ra  # return to the calling function
+
+play_next_theme_note:
+    addi $sp, $sp, -4       # Allocate space for the return address
+    sw $ra, 0($sp)          # Store the return address
+    
+    lw $t0, NOTE_COUNT  # load the note counter
+    la $t1, NEXT_NOTE   # load the addres of the NEXT_NOTE variable
+    lw $t2, 4($t1)      # load the count at which this note must be played
+    blt $t0, $t2, return_play_next # if the count is less than the count at which the note must played, we dont play the note and we return
+    lw $a0, ($t1)       # load the pitch
+    lw $a1, 8($t1)      # load the duration
+    li $a2, 81          # load the instrument, idk what instrument 81 is :(
+    li $a3, 100         # load the volume
+    jal play_note
+    jal load_next_note
+    
+    return_play_next:
+        lw $ra, 0($sp)          # Restore the return address
+        addi $sp, $sp, 4        # Deallocate space for the return address
+        jr $ra                  # return calling function
+    
+# increments the note_counter until 496, and then it resets it to zero
+# - $t0: the value of the note counter
+# - $t1: the address of the note counter
+increment_note_counter:
+    addi $sp, $sp, -4       # Allocate space for the return address
+    sw $ra, 0($sp)          # Store the return address
+    
+    lw $t0, NOTE_COUNT  # load the note counter
+    la $t1, NOTE_COUNT  # load the address of the note counter
+    addi $t0, $t0, 1    # increment the note counter by 1
+    sw $t0, ($t1)       # save the new value of the note counter
+    blt $t0, 514, return_increment # if the value is less than 496 then we dont need to reset it
+    li $t0, 0           # if the value is equal to 496, then we reset the value to zero
+    sw $t0, ($t1)       # save the new value of the note counter
+    jal load_next_note
+    return_increment:
+        
+        lw $ra, 0($sp)          # Restore the return address
+        addi $sp, $sp, 4        # Deallocate space for the return address
+        jr $ra                  # return calling function
+
+    
 # gravity effect
 gravity_effect:
     addi $sp, $sp, -4       # Allocate space for the return address
@@ -175,7 +265,7 @@ gravity_effect:
     
     lw $t0, GRAV_COUNT     # load the gravity counter
 	la $t1, GRAV_COUNT     # load the address of the gravity counter
-	li $t2, 30             # gravity speed
+	li $t2, 20             # gravity speed
 	div $t0, $t2           # divide by 60
 	mfhi $t3               # get the remainder
 	bne $t3, 0, no_gravity_effect
