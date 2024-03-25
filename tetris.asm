@@ -179,6 +179,46 @@ sleep:
     jr $ra
 
 exit:
+    li $a0, 64
+    li $a1, 400
+    li $a2, 48
+    li $a3, 100
+    jal play_note   
+    li $a0, 400
+    jal sleep
+    
+    li $a0, 63
+    li $a1, 400
+    li $a2, 48
+    li $a3, 100
+    jal play_note   
+    li $a0, 400
+    jal sleep
+    
+    li $a0, 62
+    li $a1, 400
+    li $a2, 48
+    li $a3, 100
+    jal play_note   
+    li $a0, 400
+    jal sleep
+    
+    li $a0, 61
+    li $a1, 400
+    li $a2, 48
+    li $a3, 100
+    jal play_note   
+    li $a0, 400
+    jal sleep
+    
+    li $a0, 60
+    li $a1, 800
+    li $a2, 48
+    li $a3, 100
+    jal play_note   
+    li $a0, 800
+    jal sleep
+    
     li $v0, 10
     syscall
 
@@ -477,6 +517,12 @@ handle_a_press:
 # - $t4: stores the address of DOWN_MOVEMENT
 # - $t5: stores a temporary value to be loaded into DOWN_MOVEMENT
 handle_s_press:
+    li $a0, 80
+    li $a1, 100
+    li $a2, 29
+    li $a3, 100
+    jal play_note   # play a noise when s is pressed
+    
     la $t4, DOWN_MOVEMENT   # load the address of the downmovement
     li $t5, 1               # load 1 into $t5
     sw $t5, ($t4)           # set down movement to 1
@@ -532,6 +578,12 @@ move_future_location_down:
 # - $t8: stores the pivot y value for a pixel of the tetromino in the loop iteration
 # - $t9: stores the address of DOWN_MOVEMENT
 handle_w_press:
+    li $a0, 100
+    li $a1, 100
+    li $a2, 27
+    li $a3, 100
+    jal play_note   # play a noise when w is pressed
+    
     la $t9, DOWN_MOVEMENT   # load the address of the downmovement
     sw $zero, ($t9)         # set down movement to zero
     
