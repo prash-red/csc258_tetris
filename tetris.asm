@@ -93,10 +93,11 @@ COLLISION_STATE:
 # Memory allocated to store the colour information of previously places blocks : TETRIS_WIDTH * TETRIS_HEIGHT * 4 = 16 * 24 * 4 = 1536 bytes
 PREVIOUS_BLOCKS:
     .space 1536
-
+    
 # Memory allocated to store if the O tetromino is selected
 O_SELECTED:
     .word 0
+    
 # Memory allocated to store if the future move is the result of a down movement
 DOWN_MOVEMENT:
     .word 0
@@ -104,6 +105,9 @@ DOWN_MOVEMENT:
 # Memory allocated for the counter to set the future tetromino position due to gravity
 GRAV_COUNT:
     .word 1
+# Memory allocated to store the score
+SCORE:
+    .word 0
 ##############################################################################
 # Code
 ##############################################################################
@@ -117,8 +121,6 @@ main:
     
     jal set_random_tetromino
     
-    la $a0, CURR_TETROMINO      # load the address of the current tetromino 
-    lw $a1, CURR_COLOUR         # load the value of the current colour
     jal draw_tetromino          # draw the tetromino
     
 game_loop:
@@ -146,8 +148,6 @@ game_loop:
     
     jal draw_border_with_checkered_pattern
     jal draw_previously_placed_blocks
-    la $a0, CURR_TETROMINO      # load the address of the current tetromino 
-    lw $a1, CURR_COLOUR         # load the value of the current colour
     jal draw_tetromino          # draw the tetromino
     
 	# 4. Sleep
@@ -559,7 +559,9 @@ update_location:
         jal store_to_previously_placed_blocks
         jal clear_lines
         jal set_random_tetromino
-        
+        jal check_collision
+        lw $t0, COLLISION_STATE # check the collision state of the new tetromino
+        bne $t0, 0, exit
     
     update_location_return:
         lw $ra, 0($sp)          # Restore the return address
@@ -610,6 +612,10 @@ clear_lines:
             add $a0, $zero, $t0     # set the y offset to $a0
             la $a1, PREVIOUS_BLOCKS # set the address of the previous blocks array to $a0
             jal shift_down
+            la $t8, SCORE           # load the addres of the score
+            lw $t9, SCORE           # load the score
+            addi $t9, $t9, 1        # increment the score by 1
+            sw $t9, ($t8)           # save the score
             
         after_clear_lines_x_loop:
             addi $t0, $t0, 64   # increment the y offset by 64
@@ -745,6 +751,8 @@ copy_tetromino_loop_start:
 # - $a0: the memory address of the current tetromino
 # - $a1: the colour of the current tetromino
 draw_tetromino:
+    la $a0, CURR_TETROMINO      # load the address of the current tetromino 
+    lw $a1, CURR_COLOUR         # load the value of the current colour
     addi $sp, $sp, -4       # Allocate space for the return address
     sw $ra, 0($sp)          # Store the return address
     
