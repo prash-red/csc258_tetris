@@ -129,11 +129,11 @@ game_loop:
     beq $a0, 0x64, handle_d_press   # Check if the d key was pressed
     beq $a0, 0x61, handle_a_press   # Check if the a key was pressed
     beq $a0, 0x73, handle_s_press   # Check if the s key was pressed
-    beq $a0, 0x77, handle_w_press   # Check if the s key was pressed
+    beq $a0, 0x77, handle_w_press   # Check if the w key was pressed
     keyboard_input_end:
     # 2a. Check for collisions
     jal check_collision
-	# 2b. Update locations (paddle, ball)
+	# 2b. Update locations
 	jal update_location
 	# 3. Draw the screen
     
@@ -503,7 +503,7 @@ update_location:
     
     collision_state_2:
         jal store_to_previously_placed_blocks
-        
+        jal clear_lines
         jal set_random_tetromino
         
     
@@ -511,6 +511,76 @@ update_location:
         lw $ra, 0($sp)          # Restore the return address
         addi $sp, $sp, 4        # Deallocate space for the return address
         jr $ra                  # return calling function
+
+# removes any filled lines on the previously placed blocks and shifts the blocks above the removed lines down by the number of removed lines
+# - $t0: the y offset loop counter
+# - $t1: the x offset loop counter
+# - $t2: the address of a pixel on the previously allocated blocks array
+# - $t3: the end of the y offset for the y loop
+# - $t4: the end of the x offset for the the x loop
+# - $t5: the colour of a particular pixel
+# - $t6: the offset first row from the top that is full which will be cleared
+# - $t7: number of rows that were cleared
+clear_lines:
+    addi $sp, $sp, -4       # Allocate space for the return address
+    sw $ra, 0($sp)          # Store the return address
+    
+    li $t6, 0               # set $t6 and $t7 to 0 initally. If these values are unchanged, then no rows were cleared
+    li $t7, 0
+    
+    lw $t3, TETRIS_HEIGHT   # load the height
+    addi $t3, $t3, -1       # decrement the height by 1
+    sll $t3, $t3, 6         # multiply by 2^6
+    
+    lw $t4, TETRIS_WIDTH    # load the width
+    addi $t4, $t4, -1       # decrement the width by 1
+    sll $t4, $t4, 2         # multiply by 2^2
+    
+    li $t0, 1               # set the y loop counter to 1 
+    sll $t0, $t0, 6         # multiply by 2^6 to get the number of bytes in the y offset
+    clear_lines_y_loop:
+        li $t1, 1               # set the x loop counter to 1
+        sll $t1, $t1, 2         # multiply 2^2 to get the number of bytes in the x offset
+        clear_lines_x_loop:
+        la $t2, PREVIOUS_BLOCKS                         # load the address of the previous blocks array
+            add $t2, $t2, $t0                           # add the y offset
+            add $t2, $t2, $t1                           # add the x offset
+            
+            lw $t5, ($t2)                               # get the colour of the pixel into $t5
+            beq $t5, $zero, after_clear_lines_x_loop    # if the colour of a pixel is zero, it means this particular row is not filled so we jump to the next row
+            
+            addi $t1 , $t1, 4                           # increment the x offset by 4
+            blt $t1, $t4, clear_lines_x_loop
+            
+        handle_row_is_full:
+            add $a0, $zero, $t0     # set the y offset to $a0
+            la $a1, PREVIOUS_BLOCKS # set the address of the previous blocks array to $a0
+            jal shift_down
+            
+        after_clear_lines_x_loop:
+            addi $t0, $t0, 64   # increment the y offset by 64
+            blt $t0, $t3, clear_lines_y_loop
+        
+    clear_lines_return:
+        lw $ra, 0($sp)          # Restore the return address
+        addi $sp, $sp, 4        # Deallocate space for the return address
+        jr $ra                  # return calling function
+
+
+
+# shifts the entire previous blocks array by one row down until $a0
+# - $a0: the y offset of the row to start shifting from
+# - $a1: the address of the previous blocks array
+shift_down:
+    add $a0, $a1, $a0   # add the y offset
+    addi $a0, $a0, -4   # get to the last pixel of the previous row
+    shift_down_loop_start:
+        lw $a2, ($a0)       # load the colour of the pixel into $t0
+        sw $a2, 64($a0)     # store the colour in the pixel below it
+        addi $a0, $a0, -4   # decrement the pointer by 4 to get to the previous pixel
+        bne $a0, $a1, shift_down_loop_start
+    jr $ra  # return to the calling function
+    
 
 # stores the current tetromino into the previously placed blocks array. It stores the colour in the array
 # - $t0: the loop counter
