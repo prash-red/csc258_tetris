@@ -74,7 +74,7 @@ O_COLOUR:
     .word 0xFEFB34
 # Stores information to play the theme music in the form of (pitch, count value for when the note should be played, length of note in ms)
 THEME_MUSIC:
-    .word 76, 0, 400, 71, 16, 200, 72, 24, 200, 74, 32, 400, 72, 48, 200, 71, 56, 200, 69, 64, 400, 69, 80, 200, 72, 88, 200, 76, 96, 400, 74, 112, 200, 72, 120, 200, 71, 128, 400, 71, 144, 200, 72, 152, 200, 74, 160, 400, 76, 176, 400, 72, 192, 400, 69, 208, 400, 69, 224, 400, 74, 264, 400, 77, 280, 200, 81, 288, 400, 79, 304, 200, 77, 312, 200, 76, 320, 600, 72, 344, 200, 76, 352, 400, 74, 368, 200, 72, 376, 200, 71, 384, 400, 71, 400, 200, 72, 408, 200, 74, 416, 400, 76, 432, 400, 72, 448, 400, 69, 464, 400, 69, 480, 400, 0, 497, 0
+    .word 76, 0, 266, 71, 10, 133, 72, 16, 133, 74, 21, 266, 72, 32, 133, 71, 37, 133, 69, 42, 266, 69, 53, 133, 72, 58, 133, 76, 64, 266, 74, 74, 133, 72, 80, 133, 71, 85, 266, 71, 96, 133, 72, 101, 133, 74, 106, 266, 76, 117, 266, 72, 128, 266, 69, 138, 266, 69, 149, 266, 74, 176, 266, 77, 186, 133, 81, 192, 266, 79, 202, 133, 77, 208, 133, 76, 213, 400, 72, 229, 133, 76, 234, 266, 74, 245, 133, 72, 250, 133, 71, 256, 266, 71, 266, 133, 72, 272, 133, 74, 277, 266, 76, 288, 266, 72, 298, 266, 69, 309, 266, 69, 320, 266
 ##############################################################################
 # Mutable Data
 ##############################################################################
@@ -247,7 +247,7 @@ increment_note_counter:
     la $t1, NOTE_COUNT  # load the address of the note counter
     addi $t0, $t0, 1    # increment the note counter by 1
     sw $t0, ($t1)       # save the new value of the note counter
-    blt $t0, 514, return_increment # if the value is less than 496 then we dont need to reset it
+    blt $t0, 342, return_increment # if the value is less than 496 then we dont need to reset it
     li $t0, 0           # if the value is equal to 496, then we reset the value to zero
     sw $t0, ($t1)       # save the new value of the note counter
     jal load_next_note
