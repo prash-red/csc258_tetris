@@ -75,6 +75,12 @@ O_COLOUR:
 # Stores information to play the theme music in the form of (pitch, count value for when the note should be played, length of note in ms)
 THEME_MUSIC:
     .word 76, 0, 266, 71, 10, 133, 72, 16, 133, 74, 21, 266, 72, 32, 133, 71, 37, 133, 69, 42, 266, 69, 53, 133, 72, 58, 133, 76, 64, 266, 74, 74, 133, 72, 80, 133, 71, 85, 266, 71, 96, 133, 72, 101, 133, 74, 106, 266, 76, 117, 266, 72, 128, 266, 69, 138, 266, 69, 149, 266, 74, 176, 266, 77, 186, 133, 81, 192, 266, 79, 202, 133, 77, 208, 133, 76, 213, 400, 72, 229, 133, 76, 234, 266, 74, 245, 133, 72, 250, 133, 71, 256, 266, 71, 266, 133, 72, 272, 133, 74, 277, 266, 76, 288, 266, 72, 298, 266, 69, 309, 266, 69, 320, 266
+# Stores the volume of the theme music
+THEME_VOLUME:
+    .word 0
+# Stores the pixel locations in (x, y) coordinates to display 'paused' on the right of tetris playing area
+PAUSED:
+    .word 17, 1, 18, 1, 19, 1, 17, 2, 20, 2, 17, 3, 18, 3, 19, 3, 17, 4, 17, 5, 23, 4, 24, 4, 22, 5, 25, 5, 22, 6, 23, 6, 24, 6, 25, 6, 22, 7, 25, 7, 22, 8, 25, 8, 27, 7, 30, 7, 27, 8, 30, 8, 27, 9, 30, 9, 27, 10, 30, 10, 27, 11, 28, 11, 29, 11, 30, 11, 18, 12, 19, 12, 20, 12, 17, 13, 18, 14, 19, 14, 20, 15, 17, 16, 18, 16, 19, 16, 22, 15, 23, 15, 24, 15, 25, 15, 22, 16, 22, 17, 23, 17, 24, 17, 25, 17, 22, 18, 22, 19, 23, 19, 24, 19, 25, 19, 27, 18, 28, 18, 29, 18, 27, 19, 30, 19, 27, 20, 30, 20, 27, 21, 30, 21, 27, 22, 28, 22, 29, 22
 ##############################################################################
 # Mutable Data
 ##############################################################################
@@ -117,6 +123,9 @@ NOTE_COUNT:
 # Stores the information of the next note to be played along with the address in memory
 NEXT_NOTE:
     .word 0, 0, 0, 0
+# Stores the paused state
+PAUSED_STATE:
+    .word 0
 ##############################################################################
 # Code
 ##############################################################################
@@ -146,11 +155,20 @@ game_loop:
     # 1b. Check which key has been pressed
     lw $a0, 4($t0)                  # Load second word from keyboard
     beq $a0, 0x71, exit             # Check if the q key was pressed
+    beq $a0, 0x70, handle_p_press   # Check if the p key was pressed
+    
+    lw  $t0, PAUSED_STATE           # load the paused state
+    beq $t0, 1, game_paused         # the game is paused
+    
     beq $a0, 0x64, handle_d_press   # Check if the d key was pressed
     beq $a0, 0x61, handle_a_press   # Check if the a key was pressed
     beq $a0, 0x73, handle_s_press   # Check if the s key was pressed
     beq $a0, 0x77, handle_w_press   # Check if the w key was pressed
     keyboard_input_end:
+    
+    lw  $t0, PAUSED_STATE           # load the paused state
+    beq $t0, 1, game_paused         # the game is paused
+    
     # 2a. Check for collisions
     jal check_collision
 	# 2b. Update locations
@@ -164,6 +182,7 @@ game_loop:
     jal draw_previously_placed_blocks
     jal draw_tetromino          # draw the tetromino
     
+    game_paused:
 	# 4. Sleep
 	li $a0, 25                 # sleep for 25 milliseconds
 	jal sleep
@@ -267,7 +286,7 @@ play_next_theme_note:
     lw $a0, ($t1)       # load the pitch
     lw $a1, 8($t1)      # load the duration
     li $a2, 81          # load the instrument, idk what instrument 81 is :(
-    li $a3, 100         # load the volume
+    lw $a3, THEME_VOLUME         # load the volume
     jal play_note
     jal load_next_note
     
@@ -321,7 +340,71 @@ gravity_effect:
 	lw $ra, 0($sp)          # Restore the return address
     addi $sp, $sp, 4        # Deallocate space for the return address
     jr $ra                  # return calling function
+
+# draws the paused message on the right of the tetris playing area
+draw_paused:
+    addi $sp, $sp, -4       # Allocate space for the return address
+    sw $ra, 0($sp)          # Store the return address
     
+    li $t0, 0           # set the loop counter
+    la $t1, PAUSED      # loads the address of the PAUSED variable
+    draw_pause_loop_start:
+        lw $a0, ($t1)       # load th x value
+        lw $a1, 4($t1)      # load the y value
+        li $a2, 0x4b369d    # load the colour
+        
+        addi $sp, $sp, -4
+        sw $t0, ($sp)
+        addi $sp, $sp, -4
+        sw $t1, ($sp)
+        
+        jal draw_pixel
+        
+        lw $t1, ($sp)
+        addi $sp, $sp, 4
+        lw $t0, ($sp)
+        addi $sp, $sp, 4
+        
+        addi $t1, $t1, 8    # increment the pointer to PAUSED by 8
+        addi $t0, $t0, 1    # increment the loop counter by 1
+        blt $t0, 70, draw_pause_loop_start
+        
+    lw $ra, 0($sp)          # Restore the return address
+    addi $sp, $sp, 4        # Deallocate space for the return address
+    jr $ra                  # return calling function
+
+# clears the paused message
+clear_paused:
+    addi $sp, $sp, -4       # Allocate space for the return address
+    sw $ra, 0($sp)          # Store the return address
+    
+    li $t0, 0           # set the loop counter
+    la $t1, PAUSED      # loads the address of the PAUSED variable
+    draw_clear_pause_loop_start:
+        lw $a0, ($t1)       # load th x value
+        lw $a1, 4($t1)      # load the y value
+        li $a2, 0    # load the colour
+        
+        addi $sp, $sp, -4
+        sw $t0, ($sp)
+        addi $sp, $sp, -4
+        sw $t1, ($sp)
+        
+        jal draw_pixel
+        
+        lw $t1, ($sp)
+        addi $sp, $sp, 4
+        lw $t0, ($sp)
+        addi $sp, $sp, 4
+        
+        addi $t1, $t1, 8    # increment the pointer to PAUSED by 8
+        addi $t0, $t0, 1    # increment the loop counter by 1
+        blt $t0, 70, draw_clear_pause_loop_start
+        
+    lw $ra, 0($sp)          # Restore the return address
+    addi $sp, $sp, 4        # Deallocate space for the return address
+    jr $ra                  # return calling function
+
 # draws the previously placed blocks
 # - $t0: stores the address to write to on the bitmap display
 # - $t1: stores the address to read from the previous blocks array
@@ -458,7 +541,53 @@ set_random_tetromino:
         lw $ra, 0($sp)          # Restore the return address
         addi $sp, $sp, 4        # Deallocate space for the return address
         jr $ra                  # return calling function
+
+# handles the case when the key p is pressed by inverting the PAUSED_STATE variable
+handle_p_press:
+    la $t0, PAUSED_STATE    # load the address of the PAUSED_STATE
+    lw $t1, PAUSED_STATE    # load the value of the PAUSED_STATE
     
+    beq $t1, 0, not_paused_state    # not paused
+    beq $t1, 1, paused_state        # paused
+    
+    not_paused_state:
+        li $t1, 1
+        sw $t1, ($t0)               # set the paused state to 1
+        
+        addi $sp, $sp, -4
+        sw $t0, ($sp)
+        addi $sp, $sp, -4
+        sw $t1, ($sp)
+        
+        jal draw_paused
+        
+        lw $t1, ($sp)
+        addi $sp, $sp, 4
+        lw $t0, ($sp)
+        addi $sp, $sp, 4
+        
+        b handle_p_press_return
+    paused_state:
+        li $t1, 0
+        sw $t1, ($t0)               # set the paused state to 0
+        
+        addi $sp, $sp, -4
+        sw $t0, ($sp)
+        addi $sp, $sp, -4
+        sw $t1, ($sp)
+        
+        jal clear_paused
+        
+        lw $t1, ($sp)
+        addi $sp, $sp, 4
+        lw $t0, ($sp)
+        addi $sp, $sp, 4
+        
+        b handle_p_press_return
+        
+    handle_p_press_return:
+        b keyboard_input_end
+
 # handles the case when the key d is pressed by setting the future location of the tetromino
 # - $t0: stores the address of the current tetromino
 # - $t1: stores the address of the future tetromino
@@ -519,8 +648,8 @@ handle_a_press:
 handle_s_press:
     li $a0, 80
     li $a1, 100
-    li $a2, 29
-    li $a3, 100
+    li $a2, 79
+    li $a3, 60
     jal play_note   # play a noise when s is pressed
     
     la $t4, DOWN_MOVEMENT   # load the address of the downmovement
@@ -581,7 +710,7 @@ handle_w_press:
     li $a0, 100
     li $a1, 100
     li $a2, 27
-    li $a3, 100
+    li $a3, 70
     jal play_note   # play a noise when w is pressed
     
     la $t9, DOWN_MOVEMENT   # load the address of the downmovement
